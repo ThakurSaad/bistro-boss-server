@@ -22,14 +22,25 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     await client.connect();
+    const menuCollection = client.db("bistroDb").collection("menu");
+    const reviewCollection = client.db("bistroDb").collection("reviews");
     console.log("Connected to MongoDB!");
+
+    app.get("/menu", async (req, res) => {
+      const result = await menuCollection.find().toArray();
+      res.send(result);
+    });
+    
+    app.get("/reviews", async (req, res) => {
+      const result = await reviewCollection.find().toArray();
+      res.send(result);
+    });
   } finally {
   }
 }
 run().catch(console.dir);
 
 app.get("/", (req, res) => {
-  console.log("object");
   res.send("Buy Food");
 });
 
