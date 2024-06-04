@@ -2,3 +2,4 @@
 - cors
 - mongodb
 - dotenv
+- jsonwebtoken
