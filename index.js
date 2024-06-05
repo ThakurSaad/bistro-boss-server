@@ -22,7 +22,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     const menuCollection = client.db("bistroDb").collection("menu");
     const reviewCollection = client.db("bistroDb").collection("reviews");
     const cartCollection = client.db("bistroDb").collection("carts");
@@ -59,6 +59,13 @@ async function run() {
 
     app.get("/menu", async (req, res) => {
       const result = await menuCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.get("/menu/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await menuCollection.findOne(query);
       res.send(result);
     });
 
@@ -115,6 +122,12 @@ async function run() {
       res.send({ token });
     });
 
+    app.post("/menu", verifyToken, verifyAdmin, async (req, res) => {
+      const item = req.body;
+      const result = await menuCollection.insertOne(item);
+      res.send(result);
+    });
+
     app.patch(
       "/users/admin/:id",
       verifyToken,
@@ -132,6 +145,23 @@ async function run() {
       }
     );
 
+    app.patch("/menu/:id", async (req, res) => {
+      const id = req.params.id;
+      const item = req.body;
+      const { name, category, recipe, price } = item;
+      const query = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          name,
+          category,
+          recipe,
+          price,
+        },
+      };
+      const result = await menuCollection.updateOne(query, updatedDoc);
+      res.send(result);
+    });
+
     app.delete("/carts/:id", async (req, res) => {
       const cartId = req.params.id;
       const query = { _id: new ObjectId(cartId) };
@@ -143,6 +173,12 @@ async function run() {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await userCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    app.delete("/menu/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const result = await menuCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
     });
   } finally {
