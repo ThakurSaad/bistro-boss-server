@@ -3,6 +3,7 @@ const app = express();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
+const stripe = require("stripe")(process.env.PAYMENT_SECRET_KEY);
 const port = process.env.PORT || 5000;
 
 app.use(cors());
@@ -27,6 +28,7 @@ async function run() {
     const reviewCollection = client.db("bistroDb").collection("reviews");
     const cartCollection = client.db("bistroDb").collection("carts");
     const userCollection = client.db("bistroDb").collection("users");
+    const paymentCollection = client.db("bistroDb").collection("payments");
 
     console.log("Connected to MongoDB!");
 
@@ -95,6 +97,12 @@ async function run() {
         const admin = user.role === "admin";
         return res.send({ admin });
       }
+    });
+
+    app.get("/payments/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const result = await paymentCollection.find({ email: email }).toArray();
+      res.send(result);
     });
 
     app.post("/carts", async (req, res) => {
@@ -180,6 +188,34 @@ async function run() {
       const id = req.params.id;
       const result = await menuCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
+    });
+
+    app.post("/create-payment-intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseFloat(price * 100);
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+
+    app.post("/payments", async (req, res) => {
+      const payment = req.body;
+      const paymentResult = await paymentCollection.insertOne(payment);
+      const query = {
+        _id: {
+          $in: payment.cartIds.map((id) => new ObjectId(id)),
+        },
+      };
+      const deleteResult = await cartCollection.deleteMany(query);
+
+      res.send({ paymentResult, deleteResult });
     });
   } finally {
   }
