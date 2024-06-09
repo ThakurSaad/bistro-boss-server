@@ -105,6 +105,77 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/admin-stats", verifyToken, verifyAdmin, async (req, res) => {
+      const users = await userCollection.estimatedDocumentCount();
+      const menuItems = await menuCollection.estimatedDocumentCount();
+      const orders = await paymentCollection.estimatedDocumentCount();
+
+      // const payments = await paymentCollection.find().toArray();
+      // const revenue = payments.reduce(
+      //   (total, payment) => total + payment.price,
+      //   0
+      // );
+      const revenueResult = await paymentCollection
+        .aggregate([
+          {
+            $group: {
+              _id: null,
+              totalRevenue: { $sum: "$price" },
+            },
+          },
+        ])
+        .toArray();
+      const revenue = revenueResult[0] ? revenueResult[0].totalRevenue : 0;
+
+      res.send({
+        users,
+        menuItems,
+        orders,
+        revenue,
+      });
+    });
+
+    app.get("/order-stats", async (req, res) => {
+      const pipeline = [
+        {
+          $unwind: "$menuIds",
+        },
+        {
+          $addFields: {
+            menuIds: { $toObjectId: "$menuIds" },
+          },
+        },
+        {
+          $lookup: {
+            from: "menu",
+            localField: "menuIds",
+            foreignField: "_id",
+            as: "menuItems",
+          },
+        },
+        {
+          $unwind: "$menuItems",
+        },
+        {
+          $group: {
+            _id: "$menuItems.category",
+            totalQuantity: { $sum: 1 },
+            totalRevenue: { $sum: "$menuItems.price" },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            category: "$_id",
+            totalQuantity: 1,
+            totalRevenue: 1,
+          },
+        },
+      ];
+      const result = await paymentCollection.aggregate(pipeline).toArray();
+      res.json(result);
+    });
+
     app.post("/carts", async (req, res) => {
       const cartItem = req.body;
       const result = await cartCollection.insertOne(cartItem);
